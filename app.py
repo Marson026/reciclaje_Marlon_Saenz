@@ -3,11 +3,11 @@ from pathlib import Path
 import numpy as np
 import streamlit as st
 import tensorflow as tf
-from PIL import Image
+from PIL import Image, ImageOps
 
 st.set_page_config(page_title="Recicjale Computacion en la nube", layout="centered")
 st.title("Modelo predictivo Reciclaje clase de IA-UTH -2026-Marlon Saenz 202230010131")
-st.write("Suba una imagen para clasificar con el modelo MobileNetV2 pre entrenado")
+st.write("Tome una foto con la cámara o suba una imagen para clasificar con el modelo MobileNetV2 pre entrenado")
 
 IMG_SIZE=(224,224)
 MODEL_DIR=Path("modelo_reciclaje_mobilenet")
@@ -38,9 +38,10 @@ def cargar_clases():
     return ["cardboard", "glass", "metal", "paper", "plastic", "trash"]
 
 def preparar_imagen(img):
-    img = img.convert("RGB").resize(IMG_SIZE)
+    # Igual que en el entrenamiento: RGB, 224x224, pixeles 0-255.
+    # NO se aplica preprocess_input aqui porque el modelo ya lo trae adentro.
+    img = ImageOps.exif_transpose(img).convert("RGB").resize(IMG_SIZE)
     arr = np.array(img, dtype=np.float32)
-    arr = tf.keras.applications.mobilenet_v2.preprocess_input(arr)
     return np.expand_dims(arr, axis=0)
 
 def predecir(img):
@@ -53,11 +54,17 @@ def predecir(img):
 modelo = cargar_modelo()
 clases = cargar_clases()
 
-archivo = st.file_uploader("Seleccione una imagen", type=["jpg", "jpeg", "png"])
+tab_camara, tab_archivo = st.tabs(["Cámara", "Subir imagen"])
+with tab_camara:
+    foto = st.camera_input("Tome una fotografía del residuo")
+with tab_archivo:
+    archivo_subido = st.file_uploader("Seleccione una imagen", type=["jpg", "jpeg", "png"])
+
+archivo = foto if foto is not None else archivo_subido
 
 if archivo:
-    imagen = Image.open(archivo)
-    st.image(imagen, caption="Imagen analizada", use_container_width=True)
+    imagen = ImageOps.exif_transpose(Image.open(archivo))
+    st.image(imagen, caption="Imagen capturada")
 
     resultados = predecir(imagen)
     st.subheader("Resultado")
@@ -67,4 +74,4 @@ if archivo:
     for clase, prob in resultados:
         st.write(f"{clase}: {prob:.2f}%")
 else:
-    st.info("Cargue una imagen para iniciar la clasificación.")
+    st.info("Tome una foto o cargue una imagen para iniciar la clasificación.")
